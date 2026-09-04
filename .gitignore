@@ -1,0 +1,59 @@
+# Built artifacts
+bin/
+gen/
+out/
+app/build/
+build/
+
+# Gradle and Kotlin files
+.gradle/
+.kotlin/
+kotlin-js-store/
+build.gradle.kts.swp
+
+# IDE - IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+.idea/caches/
+.idea/libraries/
+.idea/modules.xml
+.idea/workspace.xml
+.idea/navEditor.xml
+.idea/assetWizardSettings.xml
+.idea/modules/
+
+# IDE - Android Studio
+*.swp
+*~
+*.bak
+.navigation/
+captures/
+.externalNativeBuild/
+.cxx/
+local.properties
+
+# OS related
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Secrets
+google-services.json
+jks/
+*.jks
+*.keystore
+!debug.keystore
+
+# Log files
+*.log
+
+# Mobile specific
+*.apk
+*.ap_
+*.dex
