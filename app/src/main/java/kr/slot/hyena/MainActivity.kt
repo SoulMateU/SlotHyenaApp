@@ -44,12 +44,14 @@ data class Machine(
     val name: String,
     val ceiling: Int,
     val unit: String = "G",
-    val reward: String = "미검증",
-    val classType: String = "미검증",
     val highThreshold: Int,
     val midThreshold: Int,
-    val note: String = "",
-)
+    val quitRule: String = "",
+    val exceptionRule: String = "",
+) {
+    val note: String
+        get() = if (exceptionRule.isNotBlank()) "$quitRule | $exceptionRule" else quitRule
+}
 
 data class FinanceRecord(
     val id: Long = System.currentTimeMillis(),
@@ -69,6 +71,7 @@ data class Hall(
     val url: String,
     val slots: Int,
     val distVal: Double,
+    val info: String = "",
 )
 
 // --- Theme ---
@@ -106,34 +109,34 @@ fun HyenaTheme(content: @Composable () -> Unit) {
 class MachineStore(val context: Context) {
     private val p = context.getSharedPreferences("machines_v2", 0)
     private val defaults = listOf(
-        Machine("スーパーリオエース2", 750, "G", "BIG", "보너스 유지", 550, 400, "750G 계열"),
-        Machine("スマスロ モンキーターンV", 795, "G", "AT", "직접 AT", 550, 400, "400G 이상부터 효율 양호"),
-        Machine("Lパチスロ 炎炎ノ消防隊2", 850, "G", "보너스", "보너스 유지", 550, 420, "보너스간 게임수 기준"),
-        Machine("Lリコリス・リコイル", 850, "G", "RUSH", "직접 AT", 600, 450, "천장 850G"),
-        Machine("スロット ワールドダイスター", 899, "G", "보너스", "보너스 유지", 700, 500, "보너스간 천장 기준"),
-        Machine("鉄拳6", 747, "pt", "보너스", "보너스 유지", 650, 450, "포인트(pt) 기준"),
-        Machine("スマスロ 甲鉄城のカバネリ 海門決戦", 999, "G", "EP보너스→ST", "직접 AT", 650, 500, "250/450G 존 스루 후 500G부터"),
-        Machine("スマスロ モンスターハンターライズ", 999, "G", "보너스", "보너스 유지", 750, 580, "600G 부근부터 기댓값 상승"),
-        Machine("スマスロ 攻殻機動隊 SAC", 999, "G", "AT", "직접 AT", 700, 550, "AT간 순수 게임수 기준"),
-        Machine("L戦国乙女5 業火を穿つ宿焔の双刃", 999, "G", "AT", "직접 AT", 700, 530, "600G 존 노림수 연계"),
-        Machine("スーパーブラックジャック", 999, "G", "BIG→ST", "보너스 유지", 700, 550, "BIG 보너스 확정"),
-        Machine("ToLOVEる TRANCE", 999, "G", "AT", "직접 AT", 750, 550, "ST간 게임수 기준"),
-        Machine("タクトオーパス", 999, "G", "AT", "직접 AT", 750, 550, "AT 확정 천장"),
-        Machine("L邪神ちゃんドロップキック", 999, "G", "AT", "직접 AT", 750, 550, "AT 확정 천장"),
-        Machine("スマスロ ストリートファイター6", 999, "G", "AT", "직접 AT", 750, 580, "보너스/AT 확정"),
-        Machine("スマスロ とんでもスキルで異世界放浪メシ", 999, "G", "AT", "직접 AT", 750, 580, "AT 확정 천장"),
-        Machine("ゴッドイーター リザレクション", 1000, "G", "AT", "직접 AT", 750, 580, "600G 존 연계"),
-        Machine("デビルメイクライ5", 1000, "G", "AT", "직접 AT", 750, 580, "표준 1000G 천장"),
-        Machine("バイオハザード RE:3", 1000, "G", "AT", "직접 AT", 750, 580, "표준 1000G 천장"),
-        Machine("真・一騎当千", 1000, "G", "AT", "직접 AT", 750, 580, "표준 1000G 천장"),
-        Machine("スマスロ やじきた道中記参る!", 1000, "G", "보너스", "보너스 유지", 700, 500, "주기 카운트 기준"),
-        Machine("かぐや様は告らせたい", 1100, "G", "보너스", "보너스 유지", 800, 620, "BIG 후 1100G 천장 기준"),
-        Machine("東京リベンジャーズ", 1190, "G", "AT", "직접 AT", 800, 620, "1190G 천장 기준"),
-        Machine("L 東京喰種", 1200, "G", "AT", "직접 AT", 800, 650, "AT간 게임수 기준"),
-        Machine("スロット ソードアート・オンラインII", 1200, "G", "AT", "직접 AT", 850, 680, "AT간 1200G 컷라인 충족"),
-        Machine("スマスロ マギアレコード", 999, "G", "AT", "직접 AT", 750, 580, "보너스/AT 확정"),
-        Machine("Lパチスロ 喰霊-零-Re", 999, "G", "AT", "직접 AT", 750, 580, "AT 확정 천장"),
-        Machine("戦国コレクション6", 1200, "G", "AT", "직접 AT", 800, 650, "AT간 1200G 컷라인 충족"),
+        Machine("スーパーリオエース2 (슈퍼 리오 에이스 2)", 750, "G", 550, 400, "50G+α", "에이스모드·보너스 스루 등 강한 상태면 계속"),
+        Machine("スマスロ モンキーターンV (스마슬로 몽키턴 V)", 795, "G", 550, 400, "1G + 전조 확인", "헬멧/로고 등 천국·우대 시 1~2주기"),
+        Machine("Lパチスロ 炎炎ノ消防隊2 (L 염염의 소방대 2)", 850, "G", 550, 420, "①보너스 후 88G+α ②염염격투 후 최대28G", "염염루프·스루 狀況 지속"),
+        Machine("Lリコリス・リコイル (L 리코리스 리코일)", 850, "G", 600, 450, "최소 100G", "상위AT 후 100G+α, AT 완주 후 단축천장 확인"),
+        Machine("スロット ワールドダイスター (슬롯 월드 다이스타)", 899, "G", 700, 500, "일반ST 즉시", "상위ST 100G+CZ | 종료 정보 확인"),
+        Machine("鉄拳6 (철권 6)", 747, "pt", 650, 450, "AT후 99pt+α / 보너스후 철권ZONE", "고CZ·고포인트·강한 종료화면"),
+        Machine("スマスロ 甲鉄城のカバネリ 海門決戦 (갑철성의 카바네리 해문결전)", 999, "G", 650, 500, "ST종료 후 1G", "찬스目 카운터 발광 → CZ까지"),
+        Machine("スマスロ モンスターハンターライズ (스마슬로 몬스터 헌터 라이즈)", 999, "G", 750, 580, "1G", "1G째 레어역·특수상태 등"),
+        Machine("スマスロ 攻殻機動隊 SAC (스마슬로 공각기동대 SAC)", 999, "G", 700, 550, "종료 후 전조 확인", "모드/고確示唆 시 계속"),
+        Machine("L戦国乙女5 業火を穿つ宿焔の双刃 (L 전국을녀5)", 999, "G", 700, 530, "백화요란 5G + 引き戻し 확인", "1주기 확인 고려"),
+        Machine("スーパーブラックジャック (슈퍼 블랙잭)", 999, "G", 700, 550, "최소 30G", "RC 고확 지속 시 계속"),
+        Machine("ToLOVEる TRANCE (투러브 트란스)", 999, "G", 750, 550, "ST 종료 후 즉시", "200G 이내 전개·도키도키 포인트 우대 시 계속"),
+        Machine("タクトオーパス (택트 오퍼스)", 999, "G", 750, 550, "100G+α", "오르페 루프 후 약 70% 引き戻し → 반드시 확인"),
+        Machine("L邪神ちゃんドロップキック (L 사신짱 드롭킥)", 999, "G", 750, 550, "전조 확인 후 기본 즉시", "99G+α 천국 가능성 확인"),
+        Machine("スマスロ ストリートファイター6 (스마슬로 스트리트 파이터 6)", 999, "G", 750, 580, "기본 ST 종료 후", "천국/고모드 의심 → 200G+α"),
+        Machine("スマスロ とんでもスキルで異世界放浪メシ (이세계 방랑 메시)", 999, "G", 750, 580, "100G+α", "女神の加護 발생 시 계속"),
+        Machine("ゴッドイーター リザレクション (갓이터 리자레クション)", 1000, "G", 750, 580, "기본 즉시", "바캉스→100G, 전원집합→32G, 역린실패→AT까지"),
+        Machine("デビルメイクライ5 (デビル メイ ク라이 5)", 1000, "G", 750, 580, "1G + 종료화면/아이캐치", "천국 확인 → 100G"),
+        Machine("バイオハザード RE:3 (바이오해저드 RE:3)", 1000, "G", 750, 580, "스테이지 + NE포인트 확인 후", "지하창고/NE 고포인트면 계속"),
+        Machine("真・一騎当千 (진 일기당천)", 1000, "G", 750, 580, "勾玉の導き 종료 후", "포인트 강하면 100G+α 천국까지 고려"),
+        Machine("スマスロ やじきた道中記参る! (야지키타 도중기)", 1000, "G", 700, 500, "마일/전조 확인 후", "関所チャレンジ 스루 상황에 따라 계속"),
+        Machine("かぐや様は告らせたい (카구야 님은 고백받고 싶어)", 1100, "G", 800, 620, "최소 100G (실전 약 130G)", "REG후·5연이후·상성모드 등 계속"),
+        Machine("東京リベンジャーズ (도쿄 리벤저스)", 1190, "G", 800, 620, "종료 후 전조 확인", "모드/주기 강한 경우 계속"),
+        Machine("L 東京喰種 (L 도쿄 구울)", 1200, "G", 800, 650, "14~16G", "東京上空 이동 시 계속 / 엔딩 후 별도"),
+        Machine("スロット ソードアート・オンラインII (소드 아트 온라인 II)", 1200, "G", 850, 680, "50G", "50G 내 引き戻し 추첨 확인"),
+        Machine("スマスロ マギアレコード (마기아 레코드)", 999, "G", 750, 580, "종료 후 전조 확인", "모드·CZ 관련 강한 상태면 계속"),
+        Machine("Lパチスロ 喰霊-零-Re (가령-제로-Re)", 999, "G", 750, 580, "종료 후 전조 확인", "모드/스루 상황에 따라 계속"),
+        Machine("戦国コレクション6 (전국 컬렉션 6)", 1200, "G", 800, 650, "AT후 기본 즉시", "획득120枚 이하 즉시야메 금지, 무장가챠 티켓 보유시 계속"),
     )
 
     fun load(): List<Machine> {
@@ -143,9 +146,12 @@ class MachineStore(val context: Context) {
             List(a.length()) { i ->
                 val o = a.getJSONObject(i)
                 Machine(
-                    o.getString("name"), o.getInt("ceiling"), o.optString("unit"),
-                    o.optString("reward"), o.optString("classType"),
-                    o.optInt("highThreshold"), o.optInt("midThreshold"), o.optString("note"),
+                    o.getString("name"), 
+                    o.getInt("ceiling"), 
+                    o.optString("unit", "G"),
+                    o.optInt("highThreshold"), 
+                    o.optInt("midThreshold"), 
+                    o.optString("note")
                 )
             }
         } catch (_: Exception) {
@@ -161,8 +167,6 @@ class MachineStore(val context: Context) {
                     put("name", m.name)
                     put("ceiling", m.ceiling)
                     put("unit", m.unit)
-                    put("reward", m.reward)
-                    put("classType", m.classType)
                     put("highThreshold", m.highThreshold)
                     put("midThreshold", m.midThreshold)
                     put("note", m.note)
@@ -275,43 +279,43 @@ fun App(store: MachineStore) {
 
 @Composable
 fun ListScreen(ms: List<Machine>) {
-    var filter by remember { mutableStateOf("전체") }
-    val filtered = when (filter) {
-        "AT 유지" -> ms.filter { it.classType == "직접 AT" }
-        "보너스 유지" -> ms.filter { it.classType == "보너스 유지" }
-        "PASS" -> ms.filter { it.classType == "PASS" }
-        else -> ms
+    var searchQuery by remember { mutableStateOf("") }
+    val filtered = ms.filter { 
+        searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true) || it.note.contains(searchQuery, ignoreCase = true)
     }
 
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
-            Column {
-                Text(
-                    text = "Machine Database",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-                Text(
-                    text = "총 ${ms.size}개 기종 정보 탑재",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.Gray
-                )
-            }
-        }
-        item {
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("전체", "AT 유지", "보너스 유지", "PASS").forEach { x ->
-                    FilterChip(
-                        selected = filter == x,
-                        onClick = { filter = x },
-                        label = { Text(x) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primary,
-                            selectedLabelColor = Color.Black
-                        )
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column {
+                    Text(
+                        text = "Machine Database",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "총 ${ms.size}개 기종 정보 탑재",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.Gray
                     )
                 }
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    label = { Text("기종 검색") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    leadingIcon = { Icon(Icons.Default.Search, null) },
+                    trailingIcon = {
+                        if (searchQuery.isNotBlank()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(Icons.Default.Clear, null)
+                            }
+                        }
+                    },
+                    singleLine = true
+                )
             }
         }
         items(filtered) { m ->
@@ -336,16 +340,19 @@ fun ListScreen(ms: List<Machine>) {
                         }
                     }
                     Spacer(Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SuggestionChip(onClick = {}, label = { Text(m.reward) }, icon = { Icon(Icons.Default.Stars, null, Modifier.size(16.dp)) })
-                        SuggestionChip(onClick = {}, label = { Text(m.classType) })
-                    }
-                    if (m.note.isNotBlank()) {
+                    if (m.quitRule.isNotBlank()) {
                         Text(
-                            text = m.note,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.LightGray,
-                            modifier = Modifier.padding(top = 8.dp)
+                            text = "야메: ${m.quitRule}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.LightGray
+                        )
+                    }
+                    if (m.exceptionRule.isNotBlank()) {
+                        Text(
+                            text = "예외: ${m.exceptionRule}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.padding(top = 2.dp)
                         )
                     }
                 }
@@ -365,12 +372,9 @@ fun CalcScreen(ms: List<Machine>) {
         (m == null || cur == null) -> Triple("데이터를 입력하세요", Icons.Default.Info, Color.Gray)
         cur == m.ceiling -> Triple("천장 도달 (당첨 확정)", Icons.Default.Stars, MaterialTheme.colorScheme.tertiary)
         cur > m.ceiling -> Triple("천장 초과 NG (${cur - m.ceiling}${m.unit})", Icons.Default.Report, Color.Red)
-        (m.classType == "보너스 유지" || m.classType == "직접 AT") -> {
-            if (cur >= m.highThreshold) Triple("HIGH (강력 추천)", Icons.Default.ThumbUp, MaterialTheme.colorScheme.secondary)
-            else if (cur >= m.midThreshold) Triple("MID (진입 가능)", Icons.Default.CheckCircle, MaterialTheme.colorScheme.primary)
-            else Triple("LOW (진입 불가)", Icons.Default.Warning, Color(0xFFFF5252))
-        }
-        else -> Triple("PASS (효율 낮음)", Icons.Default.Block, Color.Gray)
+        cur >= m.highThreshold -> Triple("HIGH (강력 추천)", Icons.Default.ThumbUp, MaterialTheme.colorScheme.secondary)
+        cur >= m.midThreshold -> Triple("MID (진입 가능)", Icons.Default.CheckCircle, MaterialTheme.colorScheme.primary)
+        else -> Triple("LOW (진입 불가 / PASS)", Icons.Default.Warning, Color(0xFFFF5252))
     }
 
     Column(
@@ -432,7 +436,7 @@ fun CalcScreen(ms: List<Machine>) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
                         InfoColumn("천장", "${m.ceiling}${m.unit}")
                         InfoColumn("HIGH", "${m.highThreshold}${m.unit}")
-                        InfoColumn("보상", m.reward)
+                        InfoColumn("MID", "${m.midThreshold}${m.unit}")
                     }
                 }
             }
@@ -452,14 +456,14 @@ fun InfoColumn(label: String, value: String) {
 @Composable
 fun StoreScreen(ctx: Context) {
     val halls = listOf(
-        Hall("HINODE 大野城店", "약 2.0km", "福岡県大野城市瓦田4-12-5", "https://66100.p-world.jp", 360, 2.0),
-        Hall("玉屋409雑餉隈", "약 2.2km", "福岡県福岡市博多区南本町2-1-1", "https://92039.p-world.jp", 336, 2.2),
-        Hall("BEAM by HIKARI", "약 2.5km", "福岡県大野城市御笠川1-13-3", "https://80684.p-world.jp", 378, 2.5),
-        Hall("ワンダーランド南ヶ丘店", "약 3.8km", "福岡県大野城市紫台19-10", "https://42071.p-world.jp", 256, 3.8),
-        Hall("MJアリーナ井尻店", "약 4.0km", "福岡県春日市桜ヶ丘4-14", "https://mjijiri.p-world.jp", 273, 4.0),
-        Hall("Aパーク春日店", "약 4.1km", "福岡県春日市日の出町5-24", "https://www.p-world.co.jp/fukuoka/a-parkkasuga.htm", 324, 4.1),
-        Hall("つかさ月隈店", "약 4.5km", "福岡県福岡市博多区西月隈1-1-43", "https://20814.p-world.jp", 534, 4.5),
-        Hall("プラザ本店II", "약 4.8km", "福岡県福岡市博多区西月隈3-5-32", "https://43342.p-world.jp", 488, 4.8)
+        Hall("HINODE 大野城店", "약 2.0km", "福岡県大野城市瓦田4-12-5", "https://66100.p-world.jp", 360, 2.0, "슬롯 재플레이 ○ | 무료 / 한도 미확인"),
+        Hall("玉屋409雑餉隈", "약 2.2km", "福岡県福岡市博多区南本町2-1-1", "https://92039.p-world.jp", 336, 2.2, "슬롯 재플레이 ○ | 한도 약 460枚"),
+        Hall("BEAM by HIKARI", "약 2.5km", "福岡県大野城市御笠川1-13-3", "https://80684.p-world.jp", 378, 2.5, "슬롯 재플레이 ○ | 수수료·한도 미확인"),
+        Hall("ワンダーランド南ヶ丘店", "약 3.8km", "福岡県大野城市紫台19-10", "https://42071.p-world.jp", 256, 3.8, "슬롯 재플레이 ○ | 수수료·한도 미확인"),
+        Hall("MJアリーナ井尻店", "약 4.0km", "福岡県春日市桜ヶ丘4-14", "https://mjijiri.p-world.jp", 273, 4.0, "슬롯 재플레이 ○ | 무료 / 무제한"),
+        Hall("Aパーク春日店", "약 4.1km", "福岡県春日市日の出町5-24", "https://www.p-world.co.jp/fukuoka/a-parkkasuga.htm", 324, 4.1, "슬롯 재플레이 ○ | 6% 수수료 / 한도 미확인"),
+        Hall("つかさ月隈店", "약 4.5km", "福岡県福岡市博多区西月隈1-1-43", "https://20814.p-world.jp", 534, 4.5, "슬롯 재플레이 ○ | 무제한"),
+        Hall("プラザ本店II", "약 4.8km", "福岡県福岡市博多区西月隈3-5-32", "https://43342.p-world.jp", 488, 4.8, "슬롯 재플레이 ○ | 무료 / 무제한")
     ).sortedBy { it.distVal }
 
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -481,6 +485,14 @@ fun StoreScreen(ctx: Context) {
                         Text(" 슬롯 ${h.slots}대", style = MaterialTheme.typography.bodyMedium)
                     }
                     Text("🏠 ${h.address}", style = MaterialTheme.typography.bodySmall, color = Color.Gray, modifier = Modifier.padding(top = 4.dp))
+                    if (h.info.isNotBlank()) {
+                        Text(
+                            text = h.info,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
                     
                     Row(
                         modifier = Modifier.padding(top = 16.dp), 
