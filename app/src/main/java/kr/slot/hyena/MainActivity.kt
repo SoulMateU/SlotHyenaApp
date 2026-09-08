@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.content.Context
 import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.Calendar
 import java.util.Locale
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -38,6 +39,7 @@ import androidx.core.content.edit
 import androidx.core.net.toUri
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlin.math.roundToInt
 
 // --- Data Models ---
 data class Machine(
@@ -59,10 +61,22 @@ data class FinanceRecord(
     val hallName: String,
     val machineName: String,
     val startMoney: Int,
-    val endMoney: Int,
+    val endMedals: Int,
+    val exchangeMedalsPer1000: Int = 0,
 ) {
-    val profit: Int get() = endMoney - startMoney
+    val effectiveExchangeMedalsPer1000: Int
+        get() = exchangeMedalsPer1000.takeIf { it > 0 } ?: exchangeMedalsPer1000(hallName)
+
+    val revenue: Int
+        get() = if (effectiveExchangeMedalsPer1000 > 0) {
+            (endMedals * 1000.0 / effectiveExchangeMedalsPer1000).roundToInt()
+        } else 0
+
+    val profit: Int get() = revenue - startMoney
 }
+
+fun exchangeMedalsPer1000(hallName: String): Int =
+    hallDefinitions.find { it.name == hallName }?.exchangeMedalsPer1000 ?: 0
 
 data class Hall(
     val name: String,
@@ -72,6 +86,20 @@ data class Hall(
     val slots: Int,
     val distVal: Double,
     val info: String = "",
+    val rentalMedalsPer1000: Int,
+    val exchangeMedalsPer1000: Int,
+)
+
+// 업장 정보 화면과 자금 기록 화면이 함께 사용하는 업장 목록
+private val hallDefinitions = listOf(
+    Hall("HINODE 大野城店", "약 2.0km", "福岡県大野城市瓦田4-12-5", "https://66100.p-world.jp", 360, 2.0, "슬롯 재플레이 ○ | 무료 / 한도 미확인", 50, 55),
+    Hall("玉屋409雑餉隈", "약 2.2km", "福岡県福岡市博多区南本町2-1-1", "https://92039.p-world.jp", 336, 2.2, "슬롯 재플레이 ○ | 한도 약 460枚", 50, 51),
+    Hall("BEAM by HIKARI", "약 2.5km", "福岡県大野城市御笠川1-13-3", "https://80684.p-world.jp", 378, 2.5, "슬롯 재플레이 ○ | 수수료·한도 미확인", 50, 55),
+    Hall("ワンダーランド南ヶ丘店", "약 3.8km", "福岡県大野城市紫台19-10", "https://42071.p-world.jp", 256, 3.8, "슬롯 재플레이 ○ | 수수료·한도 미확인", 50, 51),
+    Hall("MJアリーナ井尻店", "약 4.0km", "福岡県春日市桜ヶ丘4-14", "https://mjijiri.p-world.jp", 273, 4.0, "슬롯 재플레이 ○ | 무료 / 무제한", 50, 50),
+    Hall("Aパーク春日店", "약 4.1km", "福岡県春日市日の出町5-24", "https://www.p-world.co.jp/fukuoka/a-parkkasuga.htm", 324, 4.1, "슬롯 재플레이 ○ | 6% 수수료 / 한도 미확인", 50, 51),
+    Hall("つかさ月隈店", "약 4.5km", "福岡県福岡市博多区西月隈1-1-43", "https://20814.p-world.jp", 534, 4.5, "슬롯 재플레이 ○ | 무제한", 50, 55),
+    Hall("プラザ本店II", "약 4.8km", "福岡県福岡市博多区西月隈3-5-32", "https://43342.p-world.jp", 488, 4.8, "슬롯 재플레이 ○ | 무료 / 무제한", 50, 51),
 )
 
 // --- Theme ---
@@ -197,7 +225,8 @@ class MachineStore(val context: Context) {
                 put("hallName", r.hallName)
                 put("machineName", r.machineName)
                 put("startMoney", r.startMoney)
-                put("endMoney", r.endMoney)
+                put("endMedals", r.endMedals)
+                put("exchangeMedalsPer1000", r.exchangeMedalsPer1000)
             })
         }
         p.edit { putString("records", a.toString()) }
@@ -211,7 +240,9 @@ class MachineStore(val context: Context) {
                 val o = a.getJSONObject(i)
                 FinanceRecord(
                     o.getLong("id"), o.getString("date"), o.getString("hallName"),
-                    o.getString("machineName"), o.getInt("startMoney"), o.getInt("endMoney")
+                    o.getString("machineName"), o.getInt("startMoney"), 
+                    if (o.has("endMedals")) o.getInt("endMedals") else o.optInt("endMoney", 0),
+                    o.optInt("exchangeMedalsPer1000", 0)
                 )
             }
         } catch (_: Exception) {
@@ -455,20 +486,45 @@ fun InfoColumn(label: String, value: String) {
 
 @Composable
 fun StoreScreen(ctx: Context) {
-    val halls = listOf(
-        Hall("HINODE 大野城店", "약 2.0km", "福岡県大野城市瓦田4-12-5", "https://66100.p-world.jp", 360, 2.0, "슬롯 재플레이 ○ | 무료 / 한도 미확인"),
-        Hall("玉屋409雑餉隈", "약 2.2km", "福岡県福岡市博多区南本町2-1-1", "https://92039.p-world.jp", 336, 2.2, "슬롯 재플레이 ○ | 한도 약 460枚"),
-        Hall("BEAM by HIKARI", "약 2.5km", "福岡県大野城市御笠川1-13-3", "https://80684.p-world.jp", 378, 2.5, "슬롯 재플레이 ○ | 수수료·한도 미확인"),
-        Hall("ワンダーランド南ヶ丘店", "약 3.8km", "福岡県大野城市紫台19-10", "https://42071.p-world.jp", 256, 3.8, "슬롯 재플레이 ○ | 수수료·한도 미확인"),
-        Hall("MJアリーナ井尻店", "약 4.0km", "福岡県春日市桜ヶ丘4-14", "https://mjijiri.p-world.jp", 273, 4.0, "슬롯 재플레이 ○ | 무료 / 무제한"),
-        Hall("Aパーク春日店", "약 4.1km", "福岡県春日市日の出町5-24", "https://www.p-world.co.jp/fukuoka/a-parkkasuga.htm", 324, 4.1, "슬롯 재플레이 ○ | 6% 수수료 / 한도 미확인"),
-        Hall("つかさ月隈店", "약 4.5km", "福岡県福岡市博多区西月隈1-1-43", "https://20814.p-world.jp", 534, 4.5, "슬롯 재플레이 ○ | 무제한"),
-        Hall("プラザ本店II", "약 4.8km", "福岡県福岡市博多区西月隈3-5-32", "https://43342.p-world.jp", 488, 4.8, "슬롯 재플레이 ○ | 무료 / 무제한")
-    ).sortedBy { it.distVal }
+    val halls = hallDefinitions
+    val prefs = remember(ctx) { ctx.getSharedPreferences("machines_v2", 0) }
+    var sortType by remember {
+        mutableStateOf(prefs.getString("hall_sort_type", "거리순") ?: "거리순")
+    }
+    val sortedHalls = when (sortType) {
+        "설치 대수순" -> halls.sortedWith(compareByDescending<Hall> { it.slots }.thenBy { it.distVal })
+        "환전율순" -> halls.sortedWith(compareBy<Hall> { it.exchangeMedalsPer1000 }.thenBy { it.distVal })
+        else -> halls.sortedBy { it.distVal }
+    }
+    var sortExpanded by remember { mutableStateOf(false) }
 
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item { Text("Visit Candidates", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold) }
-        items(halls) { h ->
+        item {
+            Box {
+                OutlinedButton(onClick = { sortExpanded = true }) {
+                    Text("정렬: $sortType")
+                    Spacer(Modifier.width(8.dp))
+                    Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                }
+                DropdownMenu(
+                    expanded = sortExpanded,
+                    onDismissRequest = { sortExpanded = false }
+                ) {
+                    listOf("거리순", "설치 대수순", "환전율순").forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text(option) },
+                            onClick = {
+                                sortType = option
+                                prefs.edit { putString("hall_sort_type", option) }
+                                sortExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
+        items(sortedHalls) { h ->
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp),
@@ -493,6 +549,13 @@ fun StoreScreen(ctx: Context) {
                             modifier = Modifier.padding(top = 4.dp)
                         )
                     }
+                    Text(
+                            "대여 ${h.rentalMedalsPer1000}枚/1,000円 · 환전 ${h.exchangeMedalsPer1000}枚/1,000円",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(top = 6.dp)
+                        )
                     
                     Row(
                         modifier = Modifier.padding(top = 16.dp), 
@@ -528,6 +591,7 @@ fun StoreScreen(ctx: Context) {
 
 @Composable
 fun FinanceScreen(ms: List<Machine>, store: MachineStore) {
+    val maxFinanceInput = 10_000_000
     val (savedTotal, _, _) = store.loadFinance()
     var totalFunds by remember { mutableIntStateOf(savedTotal) }
     var records by remember { mutableStateOf(store.loadRecords()) }
@@ -535,7 +599,7 @@ fun FinanceScreen(ms: List<Machine>, store: MachineStore) {
     val currentDate = SimpleDateFormat("M/d", Locale.getDefault()).format(Date())
     val todayRecords = records.filter { it.date == currentDate }
     val todayInvested = todayRecords.sumOf { it.startMoney }
-    val todayRevenue = todayRecords.sumOf { it.endMoney }
+    val todayRevenue = todayRecords.sumOf { it.revenue }
 
     fun updateFinance(total: Int, updatedRecords: List<FinanceRecord>) {
         totalFunds = total
@@ -547,12 +611,47 @@ fun FinanceScreen(ms: List<Machine>, store: MachineStore) {
     var showEditFunds by remember { mutableStateOf(false) }
     var editingRecord by remember { mutableStateOf<FinanceRecord?>(null) }
     var deletingRecord by remember { mutableStateOf<FinanceRecord?>(null) }
+    var dateFilter by remember { mutableStateOf("전체 날짜") }
+    var hallFilter by remember { mutableStateOf("전체 업장") }
+    var resultFilter by remember { mutableStateOf("전체 결과") }
+    var statsPeriod by remember { mutableStateOf("오늘") }
 
     val todayProfit = (todayRevenue - todayInvested).coerceAtLeast(0)
     val todayLoss = (todayInvested - todayRevenue).coerceAtLeast(0)
     val totalProfit = records.sumOf { it.profit }
     val currentBalance = totalFunds + totalProfit
     val yield = if (todayInvested > 0) ((todayRevenue - todayInvested).toDouble() / todayInvested * 100) else 0.0
+    val filteredRecords = records.filter { record ->
+        (dateFilter == "전체 날짜" || record.date == currentDate) &&
+            (hallFilter == "전체 업장" || record.hallName == hallFilter) &&
+            (resultFilter == "전체 결과" ||
+                (resultFilter == "수익" && record.profit > 0) ||
+                (resultFilter == "손실" && record.profit < 0) ||
+                (resultFilter == "보합" && record.profit == 0))
+    }
+    val statsRecords = records.filter { record ->
+        if (statsPeriod == "전체") true else {
+            val recordDate = runCatching { SimpleDateFormat("M/d", Locale.getDefault()).parse(record.date) }.getOrNull()
+            if (recordDate == null) false else {
+                val now = Calendar.getInstance()
+                val date = Calendar.getInstance().apply {
+                    time = recordDate
+                    set(Calendar.YEAR, now.get(Calendar.YEAR))
+                }
+                when (statsPeriod) {
+                    "오늘" -> date.get(Calendar.DAY_OF_YEAR) == now.get(Calendar.DAY_OF_YEAR)
+                    "이번 주" -> date.get(Calendar.WEEK_OF_YEAR) == now.get(Calendar.WEEK_OF_YEAR)
+                        && date.get(Calendar.YEAR) == now.get(Calendar.YEAR)
+                    "이번 달" -> date.get(Calendar.MONTH) == now.get(Calendar.MONTH)
+                        && date.get(Calendar.YEAR) == now.get(Calendar.YEAR)
+                    else -> true
+                }
+            }
+        }
+    }
+    val statsInvested = statsRecords.sumOf { it.startMoney }
+    val statsRevenue = statsRecords.sumOf { it.revenue }
+    val statsProfit = statsRevenue - statsInvested
 
 
 
@@ -560,9 +659,12 @@ fun FinanceScreen(ms: List<Machine>, store: MachineStore) {
         var hall by remember(editingRecord) { mutableStateOf(editingRecord?.hallName ?: "업장 선택") }
         var machine by remember(editingRecord) { mutableStateOf(editingRecord?.machineName ?: "기종 선택") }
         var start by remember(editingRecord) { mutableStateOf(editingRecord?.startMoney?.toString() ?: "") }
-        var end by remember(editingRecord) { mutableStateOf(editingRecord?.endMoney?.toString() ?: "") }
+        var endMedalsStr by remember(editingRecord) { mutableStateOf(editingRecord?.endMedals?.toString() ?: "") }
         var hallExpanded by remember { mutableStateOf(false) }
         var machExpanded by remember { mutableStateOf(false) }
+        var validationError by remember(editingRecord) { mutableStateOf<String?>(null) }
+
+        val currentHallObj = hallDefinitions.find { it.name == hall }
 
         AlertDialog(
             onDismissRequest = { 
@@ -585,6 +687,15 @@ fun FinanceScreen(ms: List<Machine>, store: MachineStore) {
                             }
                         }
                     }
+                    if (currentHallObj != null) {
+                        val exchange = exchangeMedalsPer1000(currentHallObj.name)
+                        Text(
+                            if (exchange > 0) "환전 기준: ${exchange}枚 / 1,000円" else "환전 기준: 미확인",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                    }
+
                     // 기종 선택
                     Box {
                         OutlinedButton(onClick = { machExpanded = true }, modifier = Modifier.fillMaxWidth()) { Text("기종: $machine") }
@@ -594,36 +705,60 @@ fun FinanceScreen(ms: List<Machine>, store: MachineStore) {
                             }
                         }
                     }
-                    OutlinedTextField(
+                        OutlinedTextField(
                         value = start, 
-                        onValueChange = { if (it.all(Char::isDigit)) start = it }, 
-                        label = { Text("투자 금액") }, 
+                        onValueChange = { if (it.all(Char::isDigit)) { start = it; validationError = null } }, 
+                        label = { Text("투자 금액 (円)") }, 
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true
                     )
                     OutlinedTextField(
-                        value = end, 
-                        onValueChange = { if (it.all(Char::isDigit)) end = it }, 
-                        label = { Text("회수 금액") }, 
+                        value = endMedalsStr, 
+                        onValueChange = { if (it.all(Char::isDigit)) { endMedalsStr = it; validationError = null } }, 
+                        label = { Text("회수 메달 (枚)") }, 
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true
                     )
+
+                    validationError?.let { error ->
+                        Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+                    
+                    val tempMedals = endMedalsStr.toIntOrNull()
+                    if (tempMedals != null && currentHallObj != null) {
+                        val tempRecord = FinanceRecord(date = "", hallName = hall, machineName = machine, startMoney = 0, endMedals = tempMedals, exchangeMedalsPer1000 = exchangeMedalsPer1000(hall))
+                        if (tempRecord.effectiveExchangeMedalsPer1000 > 0) {
+                            Text("예상 회수금액: ${tempRecord.revenue}엔", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
                     val s = start.toIntOrNull()
-                    val e = end.toIntOrNull()
-                    if (hall == "업장 선택" || machine == "기종 선택" || s == null || e == null) {
+                    val em = endMedalsStr.toIntOrNull()
+                    validationError = when {
+                        hall == "업장 선택" -> "업장을 선택해 주세요."
+                        machine == "기종 선택" -> "기종을 선택해 주세요."
+                        s == null || s < 0 -> "투자 금액을 입력해 주세요."
+                        s > maxFinanceInput -> "투자 금액은 ${maxFinanceInput}円 이하로 입력해 주세요."
+                        em == null || em < 0 -> "회수 메달을 입력해 주세요."
+                        em > maxFinanceInput -> "회수 메달은 ${maxFinanceInput}枚 이하로 입력해 주세요."
+                        hallDefinitions.none { it.name == hall && it.exchangeMedalsPer1000 > 0 } -> "환전 기준을 확인할 수 없는 업장입니다."
+                        else -> null
+                    }
+                    if (validationError != null) {
                         return@TextButton
                     }
+                    val validStartMoney = s ?: return@TextButton
+                    val validEndMedals = em ?: return@TextButton
                     if (editingRecord != null) {
                         val r = editingRecord!!
-                        val newRecords = records.map { if (it.id == r.id) it.copy(hallName = hall, machineName = machine, startMoney = s, endMoney = e) else it }
+                        val newRecords = records.map { if (it.id == r.id) it.copy(hallName = hall, machineName = machine, startMoney = validStartMoney, endMedals = validEndMedals, exchangeMedalsPer1000 = exchangeMedalsPer1000(hall)) else it }
                         updateFinance(totalFunds, newRecords)
                     } else {
                         val currentDate = SimpleDateFormat("M/d", Locale.getDefault()).format(Date())
-                        val newRecords = records + FinanceRecord(date = currentDate, hallName = hall, machineName = machine, startMoney = s, endMoney = e)
+                        val newRecords = records + FinanceRecord(date = currentDate, hallName = hall, machineName = machine, startMoney = validStartMoney, endMedals = validEndMedals, exchangeMedalsPer1000 = exchangeMedalsPer1000(hall))
                         updateFinance(totalFunds, newRecords)
                     }
                     editingRecord = null
@@ -670,23 +805,37 @@ fun FinanceScreen(ms: List<Machine>, store: MachineStore) {
         ) {
             item { Text("자금 관리", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold) }
             item {
+                var dateExpanded by remember { mutableStateOf(false) }
+                var hallExpanded by remember { mutableStateOf(false) }
+                var resultExpanded by remember { mutableStateOf(false) }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    FilterMenu(dateFilter, listOf("전체 날짜", currentDate), { dateFilter = it }, dateExpanded, { dateExpanded = it }, Modifier.weight(1f))
+                    FilterMenu(hallFilter, listOf("전체 업장") + hallDefinitions.map { it.name }, { hallFilter = it }, hallExpanded, { hallExpanded = it }, Modifier.weight(1f))
+                    FilterMenu(resultFilter, listOf("전체 결과", "수익", "손실", "보합"), { resultFilter = it }, resultExpanded, { resultExpanded = it }, Modifier.weight(1f))
+                }
+            }
+            item {
+                var periodExpanded by remember { mutableStateOf(false) }
+                FilterMenu(statsPeriod, listOf("오늘", "이번 주", "이번 달", "전체"), { statsPeriod = it }, periodExpanded, { periodExpanded = it }, Modifier.fillMaxWidth())
+            }
+            item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     StatCard("💰 총 자금", "$totalFunds", Modifier.weight(1f), onClick = { showEditFunds = true })
-                    StatCard("🎰 오늘 투입", "$todayInvested", Modifier.weight(1f))
+                    StatCard("🎰 ${statsPeriod} 투입", "$statsInvested", Modifier.weight(1f))
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     StatCard("💵 현재 잔액", "$currentBalance", Modifier.weight(1f))
                     StatCard("📊 수익률", "${String.format("%.1f", yield)}%", Modifier.weight(1f))
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    StatCard("🎯 오늘 결과", "${todayRevenue - todayInvested}", Modifier.weight(1f), if(todayRevenue >= todayInvested) Color(0xFF00FF41) else Color(0xFFFF5252))
+                    StatCard("🎯 ${statsPeriod} 결과", "$statsProfit", Modifier.weight(1f), if(statsProfit >= 0) Color(0xFF00FF41) else Color(0xFFFF5252))
                     StatCard("📈 누적 결과", "${records.sumOf { it.profit }}", Modifier.weight(1f))
                 }
                 }
             }
             item { Text("최근 기록", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 16.dp)) }
-        items(records.sortedByDescending { it.id }) { r ->
+        items(filteredRecords.sortedByDescending { it.id }) { r ->
             Card(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -694,7 +843,9 @@ fun FinanceScreen(ms: List<Machine>, store: MachineStore) {
                 Row(Modifier.padding(16.dp).fillMaxWidth().padding(end = 56.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) { 
                         Text("${r.date} | ${r.hallName} | ${r.machineName}", style = MaterialTheme.typography.bodyMedium)
-                        Text("${if (r.profit >= 0) "+" else ""}${r.profit}엔", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) 
+                        Text("투자 ${r.startMoney}円 · 회수 ${r.endMedals}枚", style = MaterialTheme.typography.bodyMedium)
+                        Text("회수금 ${r.revenue}円 · 기준 ${r.effectiveExchangeMedalsPer1000}枚/1,000円", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                        Text("${if (r.profit >= 0) "+" else ""}${r.profit}円", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     }
                     Row {
                         IconButton(onClick = {
@@ -713,6 +864,33 @@ fun FinanceScreen(ms: List<Machine>, store: MachineStore) {
                 }
             }
         }
+        }
+    }
+}
+
+@Composable
+fun FilterMenu(
+    selected: String,
+    options: List<String>,
+    onSelected: (String) -> Unit,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier) {
+        OutlinedButton(onClick = { onExpandedChange(true) }, modifier = Modifier.fillMaxWidth()) {
+            Text(selected, maxLines = 1)
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { onExpandedChange(false) }) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option) },
+                    onClick = {
+                        onSelected(option)
+                        onExpandedChange(false)
+                    }
+                )
+            }
         }
     }
 }
