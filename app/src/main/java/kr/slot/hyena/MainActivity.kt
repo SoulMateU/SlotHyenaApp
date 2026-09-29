@@ -30,6 +30,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Alignment
@@ -50,6 +51,10 @@ data class Machine(
     val midThreshold: Int,
     val quitRule: String = "",
     val exceptionRule: String = "",
+    val atCeiling: Int? = null,
+    val czCeiling: Int? = null,
+    val bonusCeiling: Int? = null,
+    val resetCeiling: Int? = null,
 ) {
     val note: String
         get() = if (exceptionRule.isNotBlank()) "$quitRule | $exceptionRule" else quitRule
@@ -137,13 +142,37 @@ fun HyenaTheme(content: @Composable () -> Unit) {
 class MachineStore(val context: Context) {
     private val p = context.getSharedPreferences("machines_v2", 0)
     private val defaults = listOf(
+        Machine("L青春ブタ野郎はバニーガール先輩の夢を見ない (L 청춘 부타야로)", 899, "G", 450, 350, "ST 연속 후 350G~ / 단축 시 300G~", "보너스간 899G+α, ST 종료 후 699G+α로 단축 가능. CZ 6스루 후 7회째 보너스濃厚", bonusCeiling = 899),
+        Machine("スマスロ 北斗の拳 転生の章2 (스마슬로 북두의 권 전생의 장 2)", 1536, "あべし", 850, 680, "AT 종료 후 128아베시 확인", "최대 1536아베시로 AT. 리셋 시 최대 1280아베시로 단축, 50% 고확 스타트", atCeiling = 1536, resetCeiling = 1280),
+        Machine("Lパチスロ 革命機ヴァルヴレイヴ2 (L 파치슬로 혁명기 발브레이브 2)", 1500, "G", 710, 600, "AT 종료 후 66G 引き戻し 확인", "보너스·AT간 1500G+α, CZ간 999G+α, 최대 6주기. 리셋 시 게임수 1000G·3주기로 단축", atCeiling = 1500, czCeiling = 999, resetCeiling = 1000),
+        Machine("スマスロ 北斗の拳 (스마슬로 북두의 권)", 1268, "G", 800, 600, "AT 종료 후 32G 전조 확인", "通常 최대1268G+α, 천국·전조 및 종료화면 확인"),
+        Machine("真打 吉宗 (진타 요시무네)", 1500, "G", 800, 600, "AT 종료 후 128G 확인", "AT간 1500G, CZ간 1000G, 최대 6주기. 설정변경 시 AT간 1000G, 真BIG 후 700G"),
+        Machine("スロット ソードアート・オンライン (소드 아트 온라인)", 1000, "G", 700, 500, "ST 종료 후 전조 확인", "보너스·CZ 스루 상황 및 100G 전후 전조 확인"),
+        Machine("Lパチスロうみねこのなく頃に2 (L 우미네코의 울 적에 2)", 200, "G", 150, 100, "CZ간 200G", "대표 천장은 CZ간 200G. AT간 천장 없음", czCeiling = 200),
+        Machine("パチスロ からくりサーカス (파치슬로 꼭두각시 서커스)", 1200, "液晶G", 800, 650, "AT 종료 후 100G 전조 확인", "대표 천장은 액정G 1200. CZ 4스루, AT간 2500G. 액정 1100G 이상 CZ 당첨 시 다음 CZ 300G"),
+        Machine("スマスロ とある魔術の禁書目録2 (스마슬로 어떤 마술의 금서목록2)", 1200, "G", 900, 700, "AT 종료 후 전조 확인", "AT간 1200G, CZ간 800G+α. 리셋 시 AT간 777G·CZ간 200G+α로 단축", atCeiling = 1200, czCeiling = 800, resetCeiling = 777),
+        Machine("いざ！番長 (이자! 반초)", 999, "G", 700, 500, "ボーナス 후 100G 확인", "규정 게임수·주기와 전조 스테이지 확인"),
+        Machine("スマスロ痛いのは嫌なので防御力に極振りしたいと思います。 (스마슬로 방어력 극한)", 950, "G", 700, 500, "AT 종료 후 전조 확인", "천장 950G. ST 스루 및 포인트 상태가 강하면 계속"),
+        Machine("L戦国乙女4 戦乱に閃く炯眼の軍師 (L 전국을녀4)", 799, "G", 650, 500, "AT 종료 후 100G 확인", "천장 799G. 리셋 AT 650G, 주기 최대 4회. 乙女アタック·전조 확인"),
+        Machine("押忍！番長ZERO (오스! 반초 ZERO)", 999, "G", 700, 500, "AT 종료 후 128G 확인", "모드·주기와 특훈 전조 확인"),
+        Machine("パチスロ甲鉄城のカバネリ (파치슬로 갑철성의 카바네리)", 1000, "G", 700, 500, "ST 종료 후 100G 확인", "ST 스루·게임수 및 美馬 전조 확인"),
+        Machine("パチスロこの素晴らしい世界に祝福を！ (이 멋진 세계에 축복을!)", 999, "G", 700, 500, "AT 종료 후 전조 확인", "스루 횟수와 모드·CZ 포인트 확인"),
+        Machine("L虚構推理 (L 허구추리)", 1000, "G", 700, 500, "ST 종료 후 전조 확인", "천장 1000G. 보너스간 게임수와 스루 상황 확인"),
+        Machine("スマスロ BIRDIE WING -Golf Girls' Story- (버디 윙)", 999, "G", 700, 500, "AT 종료 후 전조 확인", "주기·포인트 및 CZ 스루 확인"),
+        Machine("回胴式遊技機 グランベルム (그랑벨름)", 649, "G", 500, 400, "AT 종료 후 100G 확인", "천장 649G. 모드·전조와 天井短縮 조건 확인"),
+        Machine("L無職転生 ～異世界行ったら本気だす～ (L 무직전생)", 1000, "G", 700, 500, "AT 종료 후 전조 확인", "보너스간 게임수와 포인트 상태 확인"),
+        Machine("スマスロ 化物語 (스마슬로 바케모노가타리)", 1000, "G", 700, 500, "AT 종료 후 전조 확인", "모드·주기와 히로인 포인트 확인"),
+        Machine("L少女☆歌劇 レヴュースタァライト -The SLOT- (L 소녀☆가극 레뷰 스타라이트)", 999, "G", 700, 500, "AT 종료 후 전조 확인", "주기·스루 횟수와 종료화면 확인"),
+        Machine("スマスロ 新鬼武者3 (스마슬로 신 귀무자3)", 1000, "G", 700, 500, "AT 종료 후 100G 확인", "모드·CZ 전조 및 종료화면 확인"),
+        Machine("スマスロ バジリスク～甲賀忍法帖～絆2 天膳 BLACK EDITION (스마슬로 바질리스크 인연2 천선)", 1000, "G", 700, 500, "AT 종료 후 100G 확인", "스루 횟수·BC 모드·고확 스테이지 확인"),
+        Machine("パチスロ バイオハザード RE:2 (파치슬로 바이오하자드 RE:2)", 810, "G", 600, 450, "AT 종료 후 전조 확인", "CZ·AT 종료 후 스테이지와 게임수 확인"),
         Machine("スーパーリオエース2 (슈퍼 리오 에이스 2)", 750, "G", 550, 400, "50G+α", "에이스모드·보너스 스루 등 강한 상태면 계속"),
         Machine("スマスロ モンキーターンV (스마슬로 몽키턴 V)", 795, "G", 550, 400, "1G + 전조 확인", "헬멧/로고 등 천국·우대 시 1~2주기"),
-        Machine("Lパチスロ 炎炎ノ消防隊2 (L 염염의 소방대 2)", 850, "G", 550, 420, "①보너스 후 88G+α ②염염격투 후 최대28G", "염염루프·스루 狀況 지속"),
-        Machine("Lリコリス・リコイル (L 리코리스 리코일)", 850, "G", 600, 450, "최소 100G", "상위AT 후 100G+α, AT 완주 후 단축천장 확인"),
+        Machine("Lパチスロ 炎炎ノ消防隊2 (L 염염의 소방대 2)", 850, "G", 550, 420, "①보너스 후 88G+α ②염염격투 후 최대28G", "炎炎激闘チャンス 2000G, 伝導者の罠 5스루. 리셋 BONUS 650G / 炎炎激闘 1500G"),
+        Machine("Lリコリス・リコイル (L 리코리스 리코일)", 850, "G", 600, 450, "최소 100G", "천장 850G. CZ 600G. 상위AT 후 100G+α, AT 완주 후 단축천장 확인"),
         Machine("スロット ワールドダイスター (슬롯 월드 다이스타)", 899, "G", 700, 500, "일반ST 즉시", "상위ST 100G+CZ | 종료 정보 확인"),
         Machine("鉄拳6 (철권 6)", 747, "pt", 650, 450, "AT후 99pt+α / 보너스후 철권ZONE", "고CZ·고포인트·강한 종료화면"),
-        Machine("スマスロ 甲鉄城のカバネリ 海門決戦 (갑철성의 카바네리 해문결전)", 999, "G", 650, 500, "ST종료 후 1G", "찬스目 카운터 발광 → CZ까지"),
+    Machine("スマスロ 甲鉄城のカバネリ 海門決戦 (갑철성의 카바네리 해문결전)", 996, "G", 650, 500, "ST종료 후 1G", "찬스目 카운터 발광 → CZ까지"),
         Machine("スマスロ モンスターハンターライズ (스마슬로 몬스터 헌터 라이즈)", 999, "G", 750, 580, "1G", "1G째 레어역·특수상태 등"),
         Machine("スマスロ 攻殻機動隊 SAC (스마슬로 공각기동대 SAC)", 999, "G", 700, 550, "종료 후 전조 확인", "모드/고確示唆 시 계속"),
         Machine("L戦国乙女5 業火を穿つ宿焔の双刃 (L 전국을녀5)", 999, "G", 700, 530, "백화요란 5G + 引き戻し 확인", "1주기 확인 고려"),
@@ -157,14 +186,14 @@ class MachineStore(val context: Context) {
         Machine("デビルメイクライ5 (デビル メイ ク라이 5)", 1000, "G", 750, 580, "1G + 종료화면/아이캐치", "천국 확인 → 100G"),
         Machine("バイオハザード RE:3 (바이오해저드 RE:3)", 1000, "G", 750, 580, "스테이지 + NE포인트 확인 후", "지하창고/NE 고포인트면 계속"),
         Machine("真・一騎当千 (진 일기당천)", 1000, "G", 750, 580, "勾玉の導き 종료 후", "포인트 강하면 100G+α 천국까지 고려"),
-        Machine("スマスロ やじきた道中記参る! (야지키타 도중기)", 1000, "G", 700, 500, "마일/전조 확인 후", "関所チャレンジ 스루 상황에 따라 계속"),
+        Machine("スマスロ やじきた道中記参る! (야지키타 도중기)", 999, "まいる", 700, 500, "마일/전조 확인 후", "천장 999まいる. 関所チャレンジ 스루 상황에 따라 계속"),
         Machine("かぐや様は告らせたい (카구야 님은 고백받고 싶어)", 1100, "G", 800, 620, "최소 100G (실전 약 130G)", "REG후·5연이후·상성모드 등 계속"),
         Machine("東京リベンジャーズ (도쿄 리벤저스)", 1190, "G", 800, 620, "종료 후 전조 확인", "모드/주기 강한 경우 계속"),
-        Machine("L 東京喰種 (L 도쿄 구울)", 1200, "G", 800, 650, "14~16G", "東京上空 이동 시 계속 / 엔딩 후 별도"),
-        Machine("スロット ソードアート・オンラインII (소드 아트 온라인 II)", 1200, "G", 850, 680, "50G", "50G 내 引き戻し 추첨 확인"),
+    Machine("L 東京喰種 (L 도쿄 구울)", 1200, "G", 800, 650, "14~16G", "東京上空 이동 시 계속 / 엔딩 후 별도", atCeiling = 1200, czCeiling = 600, resetCeiling = 200),
+        Machine("スロット ソードアート・オンラインII (소드 아트 온라인 II)", 1200, "G", 850, 680, "50G", "AT간 1200G. CZ 499G / 액정 800G. 리셋·최초 상위CZ 실패 후 CZ 256G"),
         Machine("スマスロ マギアレコード (마기아 레코드)", 999, "G", 750, 580, "종료 후 전조 확인", "모드·CZ 관련 강한 상태면 계속"),
         Machine("Lパチスロ 喰霊-零-Re (가령-제로-Re)", 999, "G", 750, 580, "종료 후 전조 확인", "모드/스루 상황에 따라 계속"),
-        Machine("戦国コレクション6 (전국 컬렉션 6)", 1200, "G", 800, 650, "AT후 기본 즉시", "획득120枚 이하 즉시야메 금지, 무장가챠 티켓 보유시 계속"),
+    Machine("戦国コレクション6 (전국 컬렉션 6)", 999, "G", 800, 650, "AT후 기본 즉시", "AT간 999G+α 또는 최대 6주기 · 설정변경 시 최대 3주기 · CZ/鬼ヶ島 챌린지 간 131G+α", atCeiling = 999),
     )
 
     fun load(): List<Machine> {
@@ -179,7 +208,12 @@ class MachineStore(val context: Context) {
                     o.optString("unit", "G"),
                     o.optInt("highThreshold"), 
                     o.optInt("midThreshold"), 
-                    o.optString("note")
+                    o.optString("note"),
+                    "",
+                    o.optInt("atCeiling").takeIf { o.has("atCeiling") },
+                    o.optInt("czCeiling").takeIf { o.has("czCeiling") },
+                    o.optInt("bonusCeiling").takeIf { o.has("bonusCeiling") },
+                    o.optInt("resetCeiling").takeIf { o.has("resetCeiling") }
                 )
             }
         } catch (_: Exception) {
@@ -198,6 +232,10 @@ class MachineStore(val context: Context) {
                     put("highThreshold", m.highThreshold)
                     put("midThreshold", m.midThreshold)
                     put("note", m.note)
+                    m.atCeiling?.let { put("atCeiling", it) }
+                    m.czCeiling?.let { put("czCeiling", it) }
+                    m.bonusCeiling?.let { put("bonusCeiling", it) }
+                    m.resetCeiling?.let { put("resetCeiling", it) }
                 },
             )
         }
@@ -279,7 +317,7 @@ fun App(store: MachineStore) {
                 tonalElevation = 8.dp
             ) {
                 val items = listOf(
-                    Triple(0, "업장", Icons.Default.Place),
+                    Triple(0, "P-WORLD", Icons.AutoMirrored.Filled.OpenInNew),
                     Triple(1, "계산", Icons.Default.Calculate),
                     Triple(2, "기종", Icons.AutoMirrored.Filled.List),
                     Triple(3, "자금", Icons.Default.AccountBalanceWallet)
@@ -363,7 +401,7 @@ fun ListScreen(ms: List<Machine>) {
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             Text(
-                                text = "${m.ceiling}${m.unit}",
+                                text = "천장 ${m.ceiling}${m.unit}",
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Bold
@@ -371,16 +409,38 @@ fun ListScreen(ms: List<Machine>) {
                         }
                     }
                     Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "대표 천장: ${m.ceiling}${m.unit}",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
+                    val hasDetailedCeiling =
+                        m.atCeiling?.let { it != m.ceiling } == true ||
+                        m.czCeiling?.let { it != m.ceiling } == true ||
+                        m.bonusCeiling?.let { it != m.ceiling } == true ||
+                        m.resetCeiling != null
+                    if (hasDetailedCeiling) {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.padding(top = 8.dp)) {
+                            Text("상세 천장", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.secondary)
+                            m.atCeiling?.takeUnless { it == m.ceiling }?.let { Text("AT간: ${it}${m.unit}", style = MaterialTheme.typography.bodySmall) }
+                            m.czCeiling?.takeUnless { it == m.ceiling }?.let { Text("CZ간: ${it}${m.unit}", style = MaterialTheme.typography.bodySmall) }
+                            m.bonusCeiling?.takeUnless { it == m.ceiling }?.let { Text("ボーナス間: ${it}${m.unit}", style = MaterialTheme.typography.bodySmall) }
+                            m.resetCeiling?.let { Text("리셋 시: ${it}${m.unit}", style = MaterialTheme.typography.bodySmall) }
+                        }
+                    }
                     if (m.quitRule.isNotBlank()) {
+                        Text("야메 기준", style = MaterialTheme.typography.labelLarge, color = Color.LightGray, modifier = Modifier.padding(top = 8.dp))
                         Text(
-                            text = "야메: ${m.quitRule}",
+                            text = m.quitRule,
                             style = MaterialTheme.typography.bodyMedium,
                             color = Color.LightGray
                         )
                     }
                     if (m.exceptionRule.isNotBlank()) {
+                        Text("예외·특수 조건", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.secondary, modifier = Modifier.padding(top = 8.dp))
                         Text(
-                            text = "예외: ${m.exceptionRule}",
+                            text = m.exceptionRule,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.secondary,
                             modifier = Modifier.padding(top = 2.dp)
@@ -395,7 +455,8 @@ fun ListScreen(ms: List<Machine>) {
 @Composable
 fun CalcScreen(ms: List<Machine>) {
     var idx by remember { mutableStateOf<Int?>(null) }
-    var g by remember { mutableStateOf("") }
+    var g by remember { mutableStateOf("0") }
+    var machineSearch by remember { mutableStateOf(TextFieldValue()) }
     val m = idx?.let { ms.getOrNull(it) }
     val cur = g.toIntOrNull()
 
@@ -417,22 +478,39 @@ fun CalcScreen(ms: List<Machine>) {
     ) {
         Text("Hyena Calculator", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
 
-        var open by remember { mutableStateOf(false) }
-        Box {
-            OutlinedButton(
-                onClick = { open = true },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Text(m?.name ?: "기종을 선택하세요", style = MaterialTheme.typography.bodyLarge)
-                Spacer(Modifier.weight(1f))
-                Icon(Icons.Default.ArrowDropDown, null)
-            }
-            DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.fillMaxWidth(0.9f)) {
-                ms.forEachIndexed { i, x ->
-                    DropdownMenuItem(text = { Text(x.name) }, onClick = { idx = i; g = ""; open = false })
+        OutlinedTextField(
+            value = machineSearch,
+            onValueChange = { value ->
+                // 한글 키보드가 조합 중인 글자를 화면에 표시할 수 있도록 조합 상태를 유지한다.
+                machineSearch = value
+                idx = null
+                g = ""
+            },
+            label = { Text("기종 검색") },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            singleLine = true,
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            trailingIcon = {
+                if (machineSearch.text.isNotBlank()) {
+                    IconButton(onClick = { machineSearch = TextFieldValue(); idx = null; g = "" }) {
+                        Icon(Icons.Default.Clear, contentDescription = null)
+                    }
                 }
             }
+        )
+        if (machineSearch.text.isNotBlank() && m?.name != machineSearch.text) {
+            ms.filter { matchesMachineSearch(it.name, machineSearch.text) }
+                .take(8)
+                .forEach { x ->
+                    val i = ms.indexOf(x)
+                    ElevatedCard(
+                        modifier = Modifier.fillMaxWidth().clickable { idx = i; g = "0"; machineSearch = TextFieldValue(x.name) },
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text(x.name, modifier = Modifier.padding(14.dp))
+                    }
+                }
         }
 
         OutlinedTextField(
@@ -465,7 +543,7 @@ fun CalcScreen(ms: List<Machine>) {
                     HorizontalDivider(Modifier.padding(vertical = 16.dp), color = color.copy(alpha = 0.3f))
                     
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
-                        InfoColumn("천장", "${m.ceiling}${m.unit}")
+                        InfoColumn("대표 천장", "${m.ceiling}${m.unit}")
                         InfoColumn("HIGH", "${m.highThreshold}${m.unit}")
                         InfoColumn("MID", "${m.midThreshold}${m.unit}")
                     }
@@ -486,6 +564,27 @@ fun InfoColumn(label: String, value: String) {
 
 @Composable
 fun StoreScreen(ctx: Context) {
+    val pWorldUrl = "https://www.p-world.co.jp/".toUri()
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(64.dp))
+        Spacer(Modifier.height(16.dp))
+        Text("P-WORLD에서 업장 찾기", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text("현재 지역의 업장 정보와 기종 데이터를 P-WORLD에서 확인하세요.", textAlign = TextAlign.Center, color = Color.Gray, modifier = Modifier.padding(top = 8.dp))
+        Button(
+            onClick = { openPWorld(ctx, pWorldUrl) },
+            modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text("P-WORLD 열기")
+        }
+    }
+    /*
     val halls = hallDefinitions
     val prefs = remember(ctx) { ctx.getSharedPreferences("machines_v2", 0) }
     var sortType by remember {
@@ -519,9 +618,12 @@ fun StoreScreen(ctx: Context) {
                                 prefs.edit { putString("hall_sort_type", option) }
                                 sortExpanded = false
                             }
-                        )
-                    }
-                }
+                )
+            }
+        }
+    }
+}
+
             }
         }
         items(sortedHalls) { h ->
@@ -587,6 +689,28 @@ fun StoreScreen(ctx: Context) {
             }
         }
     }
+    */
+}
+
+private fun openPWorld(ctx: Context, webUri: Uri) {
+    val appIntent = ctx.packageManager.getLaunchIntentForPackage("jp.co.p_world.pmap")
+    val intent = appIntent ?: Intent(Intent.ACTION_VIEW, webUri)
+    ctx.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+}
+
+@OptIn(kotlin.ExperimentalStdlibApi::class)
+private fun matchesMachineSearch(name: String, query: String): Boolean {
+    val normalizedName = name.replace(" ", "").lowercase()
+    val normalizedQuery = query.replace(" ", "").lowercase()
+    if (normalizedName.contains(normalizedQuery)) return true
+
+    // 한글 초성으로도 검색: ㅈㄱ → 전국
+    val initials = normalizedName.mapNotNull { ch ->
+        if (ch in '\uAC00'..'\uD7A3') {
+            "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ"[(ch.code - 0xAC00) / 588].toString()
+        } else null
+    }.joinToString("")
+    return initials.contains(normalizedQuery)
 }
 
 @Composable
@@ -890,9 +1014,10 @@ fun FilterMenu(
                         onExpandedChange(false)
                     }
                 )
-            }
         }
     }
+}
+
 }
 
 @Composable

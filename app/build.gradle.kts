@@ -26,6 +26,22 @@ android {
         versionName = "0.2"
     }
 }
+
+// 원본 APK는 Gradle이 증분 빌드 추적에 사용하므로 남겨두고,
+// 설치·배포용 파일만 별도 이름으로 복사한다.
+tasks.configureEach {
+    if (name == "assembleDebug") {
+        doLast {
+            val apkDirectory = layout.buildDirectory.dir("outputs/apk/debug").get().asFile
+            val originalApk = apkDirectory.resolve("app-debug.apk")
+            val namedApk = apkDirectory.resolve("SlotHyena-debug.apk")
+            if (originalApk.exists()) {
+                originalApk.copyTo(namedApk, overwrite = true)
+            }
+        }
+    }
+}
+
 dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation(platform("androidx.compose:compose-bom:2025.05.00"))

@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<queries>
+    <package android:name="jp.co.p_world.pmap" />
+</queries>
 <application
         android:theme="@style/AppTheme"
         android:label="천장 하이에나"
