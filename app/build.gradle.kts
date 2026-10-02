@@ -42,6 +42,9 @@ tasks.configureEach {
     }
 }
 
+base {
+    archivesName.set("SlotHyena_v${android.defaultConfig.versionName}")
+}
 dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation(platform("androidx.compose:compose-bom:2025.05.00"))
